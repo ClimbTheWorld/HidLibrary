@@ -41,6 +41,8 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="BackgroundWorker.cs" />
+    <Compile Include="EventArgs.cs" />
     <Compile Include="HidAsyncState.cs" />
     <Compile Include="HidDevice.cs" />
     <Compile Include="HidDeviceAttributes.cs" />
