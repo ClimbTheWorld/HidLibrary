@@ -46,9 +46,9 @@ namespace HidLibrary
             var hidClass = HidClassGuid;
             var deviceInfoSet = NativeMethods.SetupDiGetClassDevs(ref hidClass, null, 0, NativeMethods.DIGCF_PRESENT | NativeMethods.DIGCF_DEVICEINTERFACE);
 
+            var devices = new List<string>();
             if (deviceInfoSet.ToInt32() != NativeMethods.INVALID_HANDLE_VALUE)
             {
-                var devices = new List<string>();
                 var deviceInfoData = CreateDeviceInfoData();
                 var deviceIndex = 0;
 
@@ -66,11 +66,11 @@ namespace HidLibrary
                         var devicePath = GetDevicePath(deviceInfoSet, deviceInterfaceData);
                         if (devices.Any(x => x == devicePath)) continue;
                         devices.Add(devicePath);
-                        yield return devicePath;
                     }
                 }
                 NativeMethods.SetupDiDestroyDeviceInfoList(deviceInfoSet);
             }
+            return devices;
         }
 
         private static NativeMethods.SP_DEVINFO_DATA CreateDeviceInfoData()
