@@ -1,5 +1,8 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.ComponentModel;
 using System.Runtime.InteropServices;
+using System.Threading;
 
 namespace HidLibrary.TestApp
 {
@@ -194,59 +197,138 @@ namespace HidLibrary.TestApp
 
         #endregion
 
-        public static void KeyDown(ScanCode scanCode)
+        static BackgroundWorker keyRepeater;
+        static Queue<RepeatingKey> repeatingKeyQueue;
+        static RepeatingKey currentRepeatingKey;
+
+        struct RepeatingKey
+        {
+            public ScanCode Code;
+            public bool Extended;
+            public int InitialPauseTime;
+            public int RepeatPauseTime;
+
+            public static RepeatingKey Empty = new RepeatingKey();
+        }
+
+        static SendInputManager()
+        {
+            keyRepeater = new BackgroundWorker() { WorkerSupportsCancellation = true };
+            keyRepeater.DoWork += new DoWorkEventHandler(keyRepeater_DoWork);
+            keyRepeater.RunWorkerCompleted += new RunWorkerCompletedEventHandler(keyRepeater_RunWorkerCompleted);
+
+            repeatingKeyQueue = new Queue<RepeatingKey>();
+        }
+
+        static void keyRepeater_DoWork(object sender, DoWorkEventArgs e)
+        {
+            RepeatingKey args;
+
+            if (e.Argument is RepeatingKey)
+                args = (RepeatingKey)e.Argument;
+            else
+                return;
+
+            DoKeyDown(args.Code, args.Extended);
+            Thread.Sleep(args.InitialPauseTime);
+            DoKeyUp(args.Code, args.Extended);
+
+            while (!keyRepeater.CancellationPending)
+            {
+                DoKeyDown(args.Code, args.Extended);
+                Thread.Sleep(args.RepeatPauseTime);
+                DoKeyUp(args.Code, args.Extended);
+            }
+        }
+
+        static void keyRepeater_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
+        {
+            currentRepeatingKey = RepeatingKey.Empty;
+
+            if (!keyRepeater.IsBusy && repeatingKeyQueue.Count > 0)
+            {
+                currentRepeatingKey = repeatingKeyQueue.Dequeue();
+                keyRepeater.RunWorkerAsync(currentRepeatingKey);
+            }
+        }
+
+        static void RepeatKey(RepeatingKey keyInfo)
+        {
+            repeatingKeyQueue.Enqueue(keyInfo);
+            if (!keyRepeater.IsBusy && repeatingKeyQueue.Count > 0)
+            {
+                currentRepeatingKey = repeatingKeyQueue.Dequeue();
+                keyRepeater.RunWorkerAsync(currentRepeatingKey);
+            }
+        }
+
+        static void DoKeyDown(ScanCode scanCode, bool extended)
         {
             var inputData = new InputWrapper[]
-            {
-                new InputWrapper()
                 {
-                    Type = SendInputType.Keyboard,
-                    MKH = new MouseKeyboardHardwareUnion()
+                    new InputWrapper()
                     {
-                        Keyboard = new KeyboardInputData()
+                        Type = SendInputType.Keyboard,
+                        MKH = new MouseKeyboardHardwareUnion()
                         {
-                            Scan = scanCode,
-                            Flags = KeyboardFlags.ScanCode | KeyboardFlags.ExtendedKey
-                            //Time = 0,
-                            //ExtraInfo = IntPtr.Zero
+                            Keyboard = new KeyboardInputData()
+                            {
+                                Scan = scanCode,
+                                Flags = KeyboardFlags.ScanCode | (extended ? KeyboardFlags.ExtendedKey : 0)
+                                //Time = 0,
+                                //ExtraInfo = IntPtr.Zero
+                            }
                         }
                     }
-                }
-            };
+                };
 
             var v = SendInput(1, inputData, Marshal.SizeOf(typeof(InputWrapper)));
-            System.Diagnostics.Debug.WriteLine("KeyDown: " + v);
+        }
+
+        static void DoKeyUp(ScanCode scanCode, bool extended)
+        {
+            var inputData = new InputWrapper[]
+                {
+                    new InputWrapper()
+                    {
+                        Type = SendInputType.Keyboard,
+                        MKH = new MouseKeyboardHardwareUnion()
+                        {
+                            Keyboard = new KeyboardInputData()
+                            {
+                                Scan = scanCode,
+                                Flags = KeyboardFlags.KeyUp | KeyboardFlags.ScanCode | (extended ? KeyboardFlags.ExtendedKey : 0)
+                                //Time = 0,
+                                //ExtraInfo = IntPtr.Zero
+                            }
+                        }
+                    }
+                };
+
+            var v = SendInput(1, inputData, Marshal.SizeOf(typeof(InputWrapper)));
+        }
+
+        public static void KeyDown(ScanCode scanCode, bool extended = false, bool repeat = false, int initialPauseTime = 500, int repeatPauseTime = 30)
+        {
+            if (repeat)
+                RepeatKey(new RepeatingKey { Code = scanCode, Extended = extended, InitialPauseTime = initialPauseTime, RepeatPauseTime = repeatPauseTime });
+            else
+                DoKeyDown(scanCode, extended);
         }
 
 
-        public static void KeyUp(ScanCode scanCode)
+        public static void KeyUp(ScanCode scanCode, bool extended = false)
         {
-            var inputData = new InputWrapper[]
-            {
-                new InputWrapper()
-                {
-                    Type = SendInputType.Keyboard,
-                    MKH = new MouseKeyboardHardwareUnion()
-                    {
-                        Keyboard = new KeyboardInputData()
-                        {
-                            Scan = scanCode,
-                            Flags = KeyboardFlags.KeyUp | KeyboardFlags.ScanCode | KeyboardFlags.ExtendedKey
-                            //Time = 0,
-                            //ExtraInfo = IntPtr.Zero
-                        }
-                    }
-                }
-            };
-
-            var v = SendInput(1, inputData, Marshal.SizeOf(typeof(InputWrapper)));
-            System.Diagnostics.Debug.WriteLine("KeyDown: " + v);
+            if (scanCode == currentRepeatingKey.Code && extended == currentRepeatingKey.Extended)
+                keyRepeater.CancelAsync();
+            else
+                DoKeyUp(scanCode, extended);
         }
 
         public static void KeyTap(ScanCode scanCode)
         {
             var inputData = new InputWrapper[]
-            {
+            { 
                 new InputWrapper()
                 {
                     Type = SendInputType.Keyboard,
@@ -278,7 +360,6 @@ namespace HidLibrary.TestApp
             };
 
             var v = SendInput(2, inputData, Marshal.SizeOf(typeof(InputWrapper)));
-            System.Diagnostics.Debug.WriteLine("KeyTap: " + v);
         }
     }
 }

@@ -145,11 +145,11 @@ namespace HidLibrary.TestApp
                 {
                     if (pressed)
                     {
-                        SendInputManager.KeyDown(SendInputManager.ScanCode.numpad4);
+                        SendInputManager.KeyDown(SendInputManager.ScanCode.a, false, true);
                     }
                     else
                     {
-                        SendInputManager.KeyUp(SendInputManager.ScanCode.numpad4);
+                        SendInputManager.KeyUp(SendInputManager.ScanCode.a);
                     }
 
                     //SendInputManager.KeyTap(SendInputManager.ScanCode.a);
