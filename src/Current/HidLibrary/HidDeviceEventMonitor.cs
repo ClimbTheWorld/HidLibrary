@@ -3,47 +3,63 @@ using System.Threading;
 
 namespace HidLibrary
 {
+    public delegate void DeviceMonitorHandler(HidDevice device);
+
     internal class HidDeviceEventMonitor
     {
-        public event InsertedEventHandler Inserted;
-        public event RemovedEventHandler Removed;
+        public event DeviceMonitorHandler Inserted;
+        public event DeviceMonitorHandler Removed;
 
-        public delegate void InsertedEventHandler();
-        public delegate void RemovedEventHandler();
+        readonly HidDevice device;
+        bool wasConnected;
 
-        private readonly HidDevice _device;
-        private bool _wasConnected;
+        BackgroundWorker<bool> monitor;
 
         public HidDeviceEventMonitor(HidDevice device)
         {
-            _device = device;
+            this.device = device;
+
+            monitor = new BackgroundWorker<bool>();
+            monitor.Updated += new EventHandler<EventArgs<bool>>(monitor_Updated);
+            monitor.DoWork += new System.ComponentModel.DoWorkEventHandler(monitor_DoWork);
         }
 
-        public void Init()
+        public void Start()
         {
-            var eventMonitor = new Action(DeviceEventMonitor);
-            eventMonitor.BeginInvoke(DisposeDeviceEventMonitor, eventMonitor);
+            if (monitor.IsBusy)
+                return;
+
+            monitor.RunWorkerAsync();
         }
 
-        private void DeviceEventMonitor()
+        public void Stop()
         {
-            var isConnected = _device.IsConnected;
+            if (!monitor.IsBusy)
+                return;
 
-            if (isConnected != _wasConnected)
+            monitor.CancelAsync();
+        }
+
+        void monitor_Updated(object sender, EventArgs<bool> e)
+        {
+            if (e.Data && Inserted != null) Inserted(device);
+            else if (!e.Data && Removed != null) Removed(device);
+        }
+
+        void monitor_DoWork(object sender, System.ComponentModel.DoWorkEventArgs e)
+        {
+            while (monitor.CancellationPending != null)
             {
-                if (isConnected && Inserted != null) Inserted();
-                else if (!isConnected && Removed != null) Removed();
-                _wasConnected = isConnected;
+                var isConnected = device.IsPathInDeviceList;
+
+                if (isConnected != wasConnected)
+                {
+                    wasConnected = isConnected;
+                    monitor.Update(isConnected);
+                }
+
+                Thread.Sleep(500);
             }
-
-            Thread.Sleep(500);
-
-            if (_device.MonitorDeviceEvents) Init();
-        }
-
-        private static void DisposeDeviceEventMonitor(IAsyncResult ar)
-        {
-            ((Action)ar.AsyncState).EndInvoke(ar);
         }
     }
 }

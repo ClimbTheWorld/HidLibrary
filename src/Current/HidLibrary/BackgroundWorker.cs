@@ -15,8 +15,8 @@ namespace HidLibrary
         private bool _cancellationPending;
         private bool _completed;
         private bool _isRunning;
-        private bool _workerReportsUpdates;
-        private bool _workerSupportsCancellation;
+        private bool _workerReportsUpdates = true;
+        private bool _workerSupportsCancellation = true;
 
         // Events
         public event DoWorkEventHandler DoWork;
@@ -93,7 +93,7 @@ namespace HidLibrary
             }
         }
 
-        public void ReportUpdate(T data)
+        public void Update(T data)
         {
             if (!this._workerReportsUpdates)
             {

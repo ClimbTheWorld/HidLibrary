@@ -131,7 +131,7 @@ namespace TestHarness
 
         private void RefreshDevices()
         {
-            _deviceList = HidDevices.Enumerate(0x0801, 0x0002).ToArray();
+            _deviceList = HidDevices.Enumerate().ToArray();//.Enumerate(0x0, 0x0).ToArray();
             //_deviceList = HidDevices.Enumerate(0x536, 0x207, 0x1c7).ToArray();
             Devices.DisplayMember = "Description";
             Devices.DataSource = _deviceList;

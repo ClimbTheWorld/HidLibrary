@@ -1,15 +1,17 @@
 ﻿using System;
 using System.Runtime.InteropServices;
+using System.Threading;
 
 namespace HidLibrary
 {
+    public delegate void DeviceReadHandler(HidDevice device, HidDeviceData data);
+
     public class HidDevice : IDisposable
     {
-        public event InsertedEventHandler Inserted;
-        public event RemovedEventHandler Removed;
+        public event DeviceMonitorHandler Inserted;
+        public event DeviceMonitorHandler Removed;
 
-        public delegate void InsertedEventHandler();
-        public delegate void RemovedEventHandler();
+        public event DeviceReadHandler DataRead;
 
         public enum DeviceMode
         {
@@ -17,40 +19,38 @@ namespace HidLibrary
             Overlapped = 1
         }
 
-        private readonly string _devicePath;
-        private readonly HidDeviceAttributes _deviceAttributes;
+        private readonly string devicePath;
+        private readonly HidDeviceAttributes deviceAttributes;
 
-        private readonly HidDeviceCapabilities _deviceCapabilities;
-        private DeviceMode _deviceReadMode = DeviceMode.NonOverlapped;
-        private DeviceMode _deviceWriteMode = DeviceMode.NonOverlapped;
+        private readonly HidDeviceCapabilities deviceCapabilities;
+        private DeviceMode deviceReadMode = DeviceMode.NonOverlapped;
+        private DeviceMode deviceWriteMode = DeviceMode.NonOverlapped;
 
-        private readonly HidDeviceEventMonitor _deviceEventMonitor;
+        private readonly HidDeviceEventMonitor deviceEventMonitor;
 
-        private bool _monitorDeviceEvents;
-        private delegate HidDeviceData ReadDelegate();
-        private delegate HidReport ReadReportDelegate();
+        private bool monitorDeviceEvents;
+        //private delegate HidDeviceData ReadDelegate();
+        //private delegate HidReport ReadReportDelegate();
         private delegate bool WriteDelegate(byte[] data);
-        private delegate bool WriteReportDelegate(HidReport report);
+        //private delegate bool WriteReportDelegate(HidReport report);
 
-        public delegate void ReadCallback(HidDeviceData data);
-        public delegate void ReadReportCallback(HidReport report);
+        //public delegate void ReadCallback(HidDeviceData data);
+        //public delegate void ReadReportCallback(HidReport report);
 
         public delegate void WriteCallback(bool success);
 
+        readonly BackgroundWorker<HidDeviceData> readWorker;
+
         internal HidDevice(string devicePath)
         {
-            _deviceEventMonitor = new HidDeviceEventMonitor(this);
-            _deviceEventMonitor.Inserted += DeviceEventMonitorInserted;
-            _deviceEventMonitor.Removed += DeviceEventMonitorRemoved;
-
-            _devicePath = devicePath;
+            this.devicePath = devicePath;
 
             try
             {
-                var hidHandle = OpenDeviceIO(_devicePath, NativeMethods.ACCESS_NONE);
+                var hidHandle = OpenDeviceIO(devicePath, NativeMethods.ACCESS_NONE);
 
-                _deviceAttributes = GetDeviceAttributes(hidHandle);
-                _deviceCapabilities = GetDeviceCapabilities(hidHandle);
+                deviceAttributes = GetDeviceAttributes(hidHandle);
+                deviceCapabilities = GetDeviceCapabilities(hidHandle);
 
                 CloseDeviceIO(hidHandle);
             }
@@ -58,34 +58,92 @@ namespace HidLibrary
             {
                 throw new Exception(string.Format("Error querying HID device '{0}'.", devicePath), exception);
             }
+
+            deviceEventMonitor = new HidDeviceEventMonitor(this);
+            deviceEventMonitor.Inserted += DeviceEventMonitorInserted;
+            deviceEventMonitor.Removed += DeviceEventMonitorRemoved;
+
+            readWorker = new BackgroundWorker<HidDeviceData>();
+            readWorker.Updated += new EventHandler<EventArgs<HidDeviceData>>(readWorker_Updated);
+            readWorker.DoWork += new System.ComponentModel.DoWorkEventHandler(readWorker_DoWork);
         }
 
         public IntPtr ReadHandle { get; private set; }
         public IntPtr WriteHandle { get; private set; }
         public bool IsOpen { get; private set; }
-        public bool IsConnected { get { return HidDevices.IsConnected(_devicePath); } }
+        public bool IsConnected { get; private set; }
+        public bool IsPathInDeviceList { get { return HidDevices.IsPathInDeviceList(devicePath); } }
         public string Description { get { return ToString(); } }
-        public HidDeviceCapabilities Capabilities { get { return _deviceCapabilities; } }
-        public HidDeviceAttributes Attributes { get { return _deviceAttributes; } }
-        public string DevicePath { get { return _devicePath; } }
+        public HidDeviceCapabilities Capabilities { get { return deviceCapabilities; } }
+        public HidDeviceAttributes Attributes { get { return deviceAttributes; } }
+        public string DevicePath { get { return devicePath; } }
 
         public bool MonitorDeviceEvents
         {
-            get { return _monitorDeviceEvents; }
+            get { return monitorDeviceEvents; }
             set
             {
-                if (value & _monitorDeviceEvents == false) _deviceEventMonitor.Init();
-                _monitorDeviceEvents = value;
+                if (value & monitorDeviceEvents == false) deviceEventMonitor.Start();
+                monitorDeviceEvents = value;
             }
         }
+
+        void readWorker_Updated(object sender, EventArgs<HidDeviceData> e)
+        {
+            if (DataRead != null)
+                DataRead(this, e.Data);
+        }
+
+        void readWorker_DoWork(object sender, System.ComponentModel.DoWorkEventArgs e)
+        {
+            HidDeviceData data;
+
+            while (!readWorker.CancellationPending)
+            {
+                if (!IsConnected)
+                    Thread.Sleep(100);
+                else
+                {
+                    if (IsOpen == false)
+                        OpenDevice();
+                    try
+                    {
+                        data = ReadData(0);
+                        if(data.Status == HidDeviceData.ReadStatus.Success)
+                            readWorker.Update(data);
+                    }
+                    catch
+                    {
+                        if (IsPathInDeviceList)
+                            readWorker.Update(new HidDeviceData(HidDeviceData.ReadStatus.ReadError));
+                        else
+                            DeviceEventMonitorRemoved(this);
+                    }
+                }
+            }
+        }
+
+        public void StartReading()
+        {
+            if (!readWorker.IsBusy)
+                readWorker.RunWorkerAsync();
+        }
+
+        public void StopReading()
+        {
+            if (readWorker.IsBusy)
+                readWorker.CancelAsync();
+        }
+
+        public bool IsReading { get { return readWorker.IsBusy; } }
 
         public override string ToString()
         {
             return string.Format("VendorID={0}, ProductID={1}, Version={2}, DevicePath={3}", 
-                                _deviceAttributes.VendorHexId,
-                                _deviceAttributes.ProductHexId,
-                                _deviceAttributes.Version,
-                                _devicePath);
+                                deviceAttributes.VendorHexId,
+                                deviceAttributes.ProductHexId,
+                                deviceAttributes.Version,
+                                devicePath);
         }
 
         public void OpenDevice()
@@ -97,13 +155,13 @@ namespace HidLibrary
         {
             if (IsOpen) return;
 
-            _deviceReadMode = readMode;
-            _deviceWriteMode = writeMode;
+            deviceReadMode = readMode;
+            deviceWriteMode = writeMode;
 
             try
             {
-                ReadHandle = OpenDeviceIO(_devicePath, readMode, NativeMethods.GENERIC_READ);
-                WriteHandle = OpenDeviceIO(_devicePath, writeMode, NativeMethods.GENERIC_WRITE);
+                ReadHandle = OpenDeviceIO(devicePath, readMode, NativeMethods.GENERIC_READ);
+                WriteHandle = OpenDeviceIO(devicePath, writeMode, NativeMethods.GENERIC_WRITE);
             }
             catch (Exception exception)
             {
@@ -128,16 +186,16 @@ namespace HidLibrary
             return Read(0);
         }
 
-        public void Read(ReadCallback callback)
-        {
-            var readDelegate = new ReadDelegate(Read);
-            var asyncState = new HidAsyncState(readDelegate, callback);
-            readDelegate.BeginInvoke(EndRead, asyncState);
-        }
+        //public void Read(ReadCallback callback)
+        //{
+        //    var readDelegate = new ReadDelegate(Read);
+        //    var asyncState = new HidAsyncState(readDelegate, callback);
+        //    readDelegate.BeginInvoke(EndRead, asyncState);
+        //}
 
         public HidDeviceData Read(int timeout)
         {
-            if (IsConnected)
+            if (IsPathInDeviceList)
             {
                 if (IsOpen == false) OpenDevice();
                 try
@@ -153,12 +211,12 @@ namespace HidLibrary
             return new HidDeviceData(HidDeviceData.ReadStatus.NotConnected);
         }
 
-        public void ReadReport(ReadReportCallback callback)
-        {
-            var readReportDelegate = new ReadReportDelegate(ReadReport);
-            var asyncState = new HidAsyncState(readReportDelegate, callback);
-            readReportDelegate.BeginInvoke(EndReadReport, asyncState);
-        }
+        //public void ReadReport(ReadReportCallback callback)
+        //{
+        //    var readReportDelegate = new ReadReportDelegate(ReadReport);
+        //    var asyncState = new HidAsyncState(readReportDelegate, callback);
+        //    readReportDelegate.BeginInvoke(EndReadReport, asyncState);
+        //}
 
         public HidReport ReadReport(int timeout)
         {
@@ -184,6 +242,7 @@ namespace HidLibrary
 
         public bool Write(byte[] data, int timeout)
         {
+            //if (IsPathInDeviceList)
             if (IsConnected)
             {
                 if (IsOpen == false) OpenDevice();
@@ -199,12 +258,12 @@ namespace HidLibrary
             return false;
         }
 
-        public void WriteReport(HidReport report, WriteCallback callback)
-        {
-            var writeReportDelegate = new WriteReportDelegate(WriteReport);
-            var asyncState = new HidAsyncState(writeReportDelegate, callback);
-            writeReportDelegate.BeginInvoke(report, EndWriteReport, asyncState);
-        }
+        //public void WriteReport(HidReport report, WriteCallback callback)
+        //{
+        //    var writeReportDelegate = new WriteReportDelegate(WriteReport);
+        //    var asyncState = new HidAsyncState(writeReportDelegate, callback);
+        //    writeReportDelegate.BeginInvoke(report, EndWriteReport, asyncState);
+        //}
 
         public bool WriteReport(HidReport report)
         {
@@ -221,25 +280,25 @@ namespace HidLibrary
             return new HidReport(Capabilities.OutputReportByteLength);
         }
 
-        private static void EndRead(IAsyncResult ar)
-        {
-            var hidAsyncState = (HidAsyncState)ar.AsyncState;
-            var callerDelegate = (ReadDelegate)hidAsyncState.CallerDelegate;
-            var callbackDelegate = (ReadCallback)hidAsyncState.CallbackDelegate;
-            var data = callerDelegate.EndInvoke(ar);
+        //private static void EndRead(IAsyncResult ar)
+        //{
+        //    var hidAsyncState = (HidAsyncState)ar.AsyncState;
+        //    var callerDelegate = (ReadDelegate)hidAsyncState.CallerDelegate;
+        //    var callbackDelegate = (ReadCallback)hidAsyncState.CallbackDelegate;
+        //    var data = callerDelegate.EndInvoke(ar);
 
-            if ((callbackDelegate != null)) callbackDelegate.Invoke(data);
-        }
+        //    if ((callbackDelegate != null)) callbackDelegate.Invoke(data);
+        //}
 
-        private static void EndReadReport(IAsyncResult ar)
-        {
-            var hidAsyncState = (HidAsyncState)ar.AsyncState;
-            var callerDelegate = (ReadReportDelegate)hidAsyncState.CallerDelegate;
-            var callbackDelegate = (ReadReportCallback)hidAsyncState.CallbackDelegate;
-            var report = callerDelegate.EndInvoke(ar);
+        //private static void EndReadReport(IAsyncResult ar)
+        //{
+        //    var hidAsyncState = (HidAsyncState)ar.AsyncState;
+        //    var callerDelegate = (ReadReportDelegate)hidAsyncState.CallerDelegate;
+        //    var callbackDelegate = (ReadReportCallback)hidAsyncState.CallbackDelegate;
+        //    var report = callerDelegate.EndInvoke(ar);
 
-            if ((callbackDelegate != null)) callbackDelegate.Invoke(report);
-        }
+        //    if ((callbackDelegate != null)) callbackDelegate.Invoke(report);
+        //}
 
         private static void EndWrite(IAsyncResult ar)
         {
@@ -251,32 +310,15 @@ namespace HidLibrary
             if ((callbackDelegate != null)) callbackDelegate.Invoke(result);
         }
 
-        private static void EndWriteReport(IAsyncResult ar)
-        {
-            var hidAsyncState = (HidAsyncState)ar.AsyncState;
-            var callerDelegate = (WriteReportDelegate)hidAsyncState.CallerDelegate;
-            var callbackDelegate = (WriteCallback)hidAsyncState.CallbackDelegate;
-            var result = callerDelegate.EndInvoke(ar);
+        //private static void EndWriteReport(IAsyncResult ar)
+        //{
+        //    var hidAsyncState = (HidAsyncState)ar.AsyncState;
+        //    var callerDelegate = (WriteReportDelegate)hidAsyncState.CallerDelegate;
+        //    var callbackDelegate = (WriteCallback)hidAsyncState.CallbackDelegate;
+        //    var result = callerDelegate.EndInvoke(ar);
 
-            if ((callbackDelegate != null)) callbackDelegate.Invoke(result);
-        }
-
-        private byte[] CreateInputBuffer()
-        {
-            return CreateBuffer(Capabilities.InputReportByteLength - 1);
-        }
-
-        private byte[] CreateOutputBuffer()
-        {
-            return CreateBuffer(Capabilities.OutputReportByteLength - 1);
-        }
-
-        private static byte[] CreateBuffer(int length)
-        {
-            byte[] buffer = null;
-            Array.Resize(ref buffer, length + 1);
-            return buffer;
-        }
+        //    if ((callbackDelegate != null)) callbackDelegate.Invoke(result);
+        //}
 
         private static HidDeviceAttributes GetDeviceAttributes(IntPtr hidHandle)
         {
@@ -301,14 +343,14 @@ namespace HidLibrary
 
         private bool WriteData(byte[] data, int timeout)
         {
-            if (_deviceCapabilities.OutputReportByteLength <= 0) return false;
+            if (deviceCapabilities.OutputReportByteLength <= 0) return false;
 
-            var buffer = CreateOutputBuffer();
+            var buffer = new byte[Capabilities.OutputReportByteLength];
             var bytesWritten = 0;
 
-            Array.Copy(data, 0, buffer, 0, Math.Min(data.Length, _deviceCapabilities.OutputReportByteLength));
+            Array.Copy(data, 0, buffer, 0, Math.Min(data.Length, deviceCapabilities.OutputReportByteLength));
 
-            if (_deviceWriteMode == DeviceMode.Overlapped)
+            if (deviceWriteMode == DeviceMode.Overlapped)
             {
                 var security = new NativeMethods.SECURITY_ATTRIBUTES();
                 var overlapped = new NativeMethods.OVERLAPPED();
@@ -352,16 +394,14 @@ namespace HidLibrary
 
         private HidDeviceData ReadData(int timeout)
         {
-            var buffer = new byte[] { };
+            var buffer = new byte[Capabilities.InputReportByteLength];
             var status = HidDeviceData.ReadStatus.NoDataRead;
 
-            if (_deviceCapabilities.InputReportByteLength > 0)
+            if (deviceCapabilities.InputReportByteLength > 0)
             {
                 var bytesRead = 0;
 
-                buffer = CreateInputBuffer();
-
-                if (_deviceReadMode == DeviceMode.Overlapped)
+                if (deviceReadMode == DeviceMode.Overlapped)
                 {
                     var security = new NativeMethods.SECURITY_ATTRIBUTES();
                     var overlapped = new NativeMethods.OVERLAPPED();
@@ -405,7 +445,8 @@ namespace HidLibrary
                     try
                     {
                         NativeMethods.ReadFile(ReadHandle, ref buffer[0], buffer.Length, ref bytesRead, IntPtr.Zero);
-                        status = HidDeviceData.ReadStatus.Success;
+                        if (bytesRead > 0)
+                            status = HidDeviceData.ReadStatus.Success;
                     }
                     catch { status = HidDeviceData.ReadStatus.ReadError; }
                 }
@@ -437,16 +478,18 @@ namespace HidLibrary
             NativeMethods.CloseHandle(handle);
         }
 
-        private void DeviceEventMonitorInserted()
+        private void DeviceEventMonitorInserted(HidDevice device)
         {
-            if (IsOpen) OpenDevice();
-            if (Inserted != null) Inserted();
+            IsConnected = true;
+            if (!IsOpen) OpenDevice();
+            if (Inserted != null) Inserted(this);
         }
 
-        private void DeviceEventMonitorRemoved()
+        private void DeviceEventMonitorRemoved(HidDevice device)
         {
+            IsConnected = false;
             if (IsOpen) CloseDevice();
-            if (Removed != null) Removed();
+            if (Removed != null) Removed(this);
         }
 
         public void Dispose()

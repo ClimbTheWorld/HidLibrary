@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
 using System.Runtime.InteropServices;
 
 namespace HidLibrary
@@ -10,43 +9,78 @@ namespace HidLibrary
     {
         private static Guid _hidClassGuid = Guid.Empty;
 
-        public static bool IsConnected(string devicePath)
+        public static bool IsPathInDeviceList(string devicePath)
         {
-            return EnumerateHidDevices().Where(x => x == devicePath).Any();
+            foreach (var d in EnumerateHidDevices())
+                if (d == devicePath) return true;
+
+            return false;
         }
 
         public static HidDevice GetDevice(string devicePath)
         {
-            return Enumerate(devicePath).FirstOrDefault();
+            foreach (var path in EnumerateHidDevices())
+                if (path == devicePath)
+                    return new HidDevice(path);
+
+            return null;
         }
 
         public static IEnumerable<HidDevice> Enumerate()
         {
-            return EnumerateHidDevices().Select(x => new HidDevice(x));
+            foreach (var path in EnumerateHidDevices())
+                yield return new HidDevice(path);
         }
 
         public static IEnumerable<HidDevice> Enumerate(string devicePath)
         {
-            return EnumerateHidDevices().Where(x => x == devicePath).Select(x => new HidDevice(x));
+            foreach (var path in EnumerateHidDevices())
+                if (path == devicePath)
+                    yield return new HidDevice(path);
         }
 
         public static IEnumerable<HidDevice> Enumerate(int vendorId, params int[] productIds)
         {
-            return EnumerateHidDevices().Select(x => new HidDevice(x)).Where(x => x.Attributes.VendorId == vendorId && 
-                                                                                  productIds.Contains(x.Attributes.ProductId));
+            List<int> pids = new List<int>(productIds);
+
+            foreach (var path in EnumerateHidDevices())
+            {
+                var device = new HidDevice(path);
+                if (device.Attributes.VendorId == vendorId && pids.Contains(device.Attributes.ProductId))
+                    yield return device;
+            }
+        }
+
+        public static HidDevice GetDevice(int vendorId, params int[] productIds)
+        {
+            List<int> pids = new List<int>(productIds);
+
+            foreach (var path in EnumerateHidDevices())
+            {
+                var device = new HidDevice(path);
+                if (device.Attributes.VendorId == vendorId && pids.Contains(device.Attributes.ProductId))
+                    return device;
+            }
+
+            return null;
         }
 
         public static IEnumerable<HidDevice> Enumerate(int vendorId)
         {
-            return EnumerateHidDevices().Select(x => new HidDevice(x)).Where(x => x.Attributes.VendorId == vendorId);
+            foreach (var path in EnumerateHidDevices())
+            {
+                var device = new HidDevice(path);
+                if (device.Attributes.VendorId == vendorId)
+                    yield return device;
+            }
         }
 
         private static IEnumerable<string> EnumerateHidDevices()
         {
+            var devices = new List<string>();
             var hidClass = HidClassGuid;
             var deviceInfoSet = NativeMethods.SetupDiGetClassDevs(ref hidClass, null, 0, NativeMethods.DIGCF_PRESENT | NativeMethods.DIGCF_DEVICEINTERFACE);
 
-            var devices = new List<string>();
             if (deviceInfoSet.ToInt32() != NativeMethods.INVALID_HANDLE_VALUE)
             {
                 var deviceInfoData = CreateDeviceInfoData();
@@ -64,7 +98,7 @@ namespace HidLibrary
                     {
                         deviceInterfaceIndex++;
                         var devicePath = GetDevicePath(deviceInfoSet, deviceInterfaceData);
-                        if (devices.Any(x => x == devicePath)) continue;
+                        if (devices.Contains(devicePath)) continue;
                         devices.Add(devicePath);
                     }
                 }
@@ -93,7 +127,7 @@ namespace HidLibrary
 
             NativeMethods.SetupDiGetDeviceInterfaceDetailBuffer(deviceInfoSet, ref deviceInterfaceData, IntPtr.Zero, 0, ref bufferSize, IntPtr.Zero);
 
-            return NativeMethods.SetupDiGetDeviceInterfaceDetail(deviceInfoSet, ref deviceInterfaceData, ref interfaceDetail, bufferSize, ref bufferSize, IntPtr.Zero) ? 
+            return NativeMethods.SetupDiGetDeviceInterfaceDetail(deviceInfoSet, ref deviceInterfaceData, ref interfaceDetail, bufferSize, ref bufferSize, IntPtr.Zero) ?
                 interfaceDetail.DevicePath : null;
         }
 

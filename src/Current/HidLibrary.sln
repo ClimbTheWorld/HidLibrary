@@ -2,7 +2,7 @@ Microsoft Visual Studio Solution File, Format Version 11.00
 # Visual Studio 2010
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HidLibrary", "HidLibrary\HidLibrary.csproj", "{9E8F1D50-74EA-4C60-BD5C-AB2C5B53BC66}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TestHarness", "TestHarness\TestHarness.csproj", "{3009AC13-6BED-44AF-92F6-8E6C802716C9}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HidLibrary.TestApp", "HidLibrary.TestApp\HidLibrary.TestApp.csproj", "{E587C788-6DDA-4AA4-8193-3EA9DE9B089E}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -24,16 +24,16 @@ Global
 		{9E8F1D50-74EA-4C60-BD5C-AB2C5B53BC66}.Release|Mixed Platforms.ActiveCfg = Release|Any CPU
 		{9E8F1D50-74EA-4C60-BD5C-AB2C5B53BC66}.Release|Mixed Platforms.Build.0 = Release|Any CPU
 		{9E8F1D50-74EA-4C60-BD5C-AB2C5B53BC66}.Release|x86.ActiveCfg = Release|Any CPU
-		{3009AC13-6BED-44AF-92F6-8E6C802716C9}.Debug|Any CPU.ActiveCfg = Debug|x86
-		{3009AC13-6BED-44AF-92F6-8E6C802716C9}.Debug|Mixed Platforms.ActiveCfg = Debug|x86
-		{3009AC13-6BED-44AF-92F6-8E6C802716C9}.Debug|Mixed Platforms.Build.0 = Debug|x86
-		{3009AC13-6BED-44AF-92F6-8E6C802716C9}.Debug|x86.ActiveCfg = Debug|x86
-		{3009AC13-6BED-44AF-92F6-8E6C802716C9}.Debug|x86.Build.0 = Debug|x86
-		{3009AC13-6BED-44AF-92F6-8E6C802716C9}.Release|Any CPU.ActiveCfg = Release|x86
-		{3009AC13-6BED-44AF-92F6-8E6C802716C9}.Release|Mixed Platforms.ActiveCfg = Release|x86
-		{3009AC13-6BED-44AF-92F6-8E6C802716C9}.Release|Mixed Platforms.Build.0 = Release|x86
-		{3009AC13-6BED-44AF-92F6-8E6C802716C9}.Release|x86.ActiveCfg = Release|x86
-		{3009AC13-6BED-44AF-92F6-8E6C802716C9}.Release|x86.Build.0 = Release|x86
+		{E587C788-6DDA-4AA4-8193-3EA9DE9B089E}.Debug|Any CPU.ActiveCfg = Debug|x86
+		{E587C788-6DDA-4AA4-8193-3EA9DE9B089E}.Debug|Mixed Platforms.ActiveCfg = Debug|x86
+		{E587C788-6DDA-4AA4-8193-3EA9DE9B089E}.Debug|Mixed Platforms.Build.0 = Debug|x86
+		{E587C788-6DDA-4AA4-8193-3EA9DE9B089E}.Debug|x86.ActiveCfg = Debug|x86
+		{E587C788-6DDA-4AA4-8193-3EA9DE9B089E}.Debug|x86.Build.0 = Debug|x86
+		{E587C788-6DDA-4AA4-8193-3EA9DE9B089E}.Release|Any CPU.ActiveCfg = Release|x86
+		{E587C788-6DDA-4AA4-8193-3EA9DE9B089E}.Release|Mixed Platforms.ActiveCfg = Release|x86
+		{E587C788-6DDA-4AA4-8193-3EA9DE9B089E}.Release|Mixed Platforms.Build.0 = Release|x86
+		{E587C788-6DDA-4AA4-8193-3EA9DE9B089E}.Release|x86.ActiveCfg = Release|x86
+		{E587C788-6DDA-4AA4-8193-3EA9DE9B089E}.Release|x86.Build.0 = Release|x86
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
