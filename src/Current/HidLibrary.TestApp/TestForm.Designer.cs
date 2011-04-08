@@ -28,13 +28,25 @@
         /// </summary>
         private void InitializeComponent()
         {
+            this.rtbInfo = new System.Windows.Forms.RichTextBox();
             this.SuspendLayout();
+            // 
+            // rtbInfo
+            // 
+            this.rtbInfo.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.rtbInfo.Font = new System.Drawing.Font("Courier New", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.rtbInfo.Location = new System.Drawing.Point(0, 0);
+            this.rtbInfo.Name = "rtbInfo";
+            this.rtbInfo.Size = new System.Drawing.Size(415, 262);
+            this.rtbInfo.TabIndex = 0;
+            this.rtbInfo.Text = "";
             // 
             // TestForm
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(284, 262);
+            this.ClientSize = new System.Drawing.Size(415, 262);
+            this.Controls.Add(this.rtbInfo);
             this.Name = "TestForm";
             this.Text = "HidLibrary Test Form";
             this.Load += new System.EventHandler(this.TestForm_Load);
@@ -43,6 +55,8 @@
         }
 
         #endregion
+
+        private System.Windows.Forms.RichTextBox rtbInfo;
     }
 }
 
