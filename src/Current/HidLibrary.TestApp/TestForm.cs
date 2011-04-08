@@ -14,15 +14,15 @@ namespace HidLibrary.TestApp
     public enum G13Keys : ulong
     {
         // G keys
-        G01 = 0x0000000001,
-        G02 = 0x0000000002,
-        G03 = 0x0000000004,
-        G04 = 0x0000000008,
-        G05 = 0x0000000010,
-        G06 = 0x0000000020,
-        G07 = 0x0000000040,
-        G08 = 0x0000000080,
-        G09 = 0x0000000100,
+        G1 = 0x0000000001,
+        G2 = 0x0000000002,
+        G3 = 0x0000000004,
+        G4 = 0x0000000008,
+        G5 = 0x0000000010,
+        G6 = 0x0000000020,
+        G7 = 0x0000000040,
+        G8 = 0x0000000080,
+        G9 = 0x0000000100,
         G10 = 0x0000000200,
         G11 = 0x0000000400,
         G12 = 0x0000000800,
@@ -38,23 +38,23 @@ namespace HidLibrary.TestApp
         G22 = 0x0000200000,
 
         // Joystick buttons
-        JBL = 0x0200000000, // left
-        JBB = 0x0400000000, // bottom
-        JBM = 0x0800000000, // middle (i.e., on the stick)
+        J1 = 0x0200000000, // left
+        J2 = 0x0400000000, // bottom
+        J3 = 0x0800000000, // middle (i.e., on the stick)
 
         // M keys
-        M01 = 0x0020000000,
-        M02 = 0x0040000000,
-        M03 = 0x0080000000,
-        M04 = 0x0100000000,
+        M1 = 0x0020000000,
+        M2 = 0x0040000000,
+        M3 = 0x0080000000,
+        M4 = 0x0100000000,
 
         // LCD keys
-        LCS = 0x0001000000, // LCD Select Applet
-        LC1 = 0x0002000000, 
-        LC2 = 0x0004000000,
-        LC3 = 0x0008000000,
-        LC4 = 0x0010000000,
-        LCL = 0x6000000000, // LCD Light
+        L0 = 0x0001000000, // LCD Select Applet
+        L1 = 0x0002000000, 
+        L2 = 0x0004000000,
+        L3 = 0x0008000000,
+        L4 = 0x0010000000,
+        L5 = 0x6000000000, // LCD Light
     }
 
     public partial class TestForm : Form
@@ -138,6 +138,22 @@ namespace HidLibrary.TestApp
 #else
                 var dif = currentState.UL ^ state.UL;
                 sb.Append(((G13Keys)dif).ToString());
+                var pressed = (dif & state.UL) > 0;
+                sb.Append(" ").Append(pressed);
+
+                if ((G13Keys)dif == G13Keys.G1)
+                {
+                    if (pressed)
+                    {
+                        SendInputManager.KeyDown(SendInputManager.ScanCode.numpad4);
+                    }
+                    else
+                    {
+                        SendInputManager.KeyUp(SendInputManager.ScanCode.numpad4);
+                    }
+
+                    //SendInputManager.KeyTap(SendInputManager.ScanCode.a);
+                }
 #endif
 
                 sb.Append(Environment.NewLine);
