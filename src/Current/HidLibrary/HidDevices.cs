@@ -70,6 +70,7 @@ namespace HidLibrary
                 }
                 NativeMethods.SetupDiDestroyDeviceInfoList(deviceInfoSet);
             }
+
             return devices;
         }
 
